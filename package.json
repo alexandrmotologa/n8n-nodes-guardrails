@@ -1,0 +1,48 @@
+{
+  "name": "n8n-nodes-guardrails",
+  "version": "1.0.0",
+  "description": "n8n community node for zero-leak bidirectional PII masking, prompt injection defense, and LLM budget circuit breaking",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "guardrails",
+    "ai-safety",
+    "pii-masking",
+    "gdpr",
+    "prompt-injection",
+    "circuit-breaker"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/alexandrmotologa/n8n-nodes-guardrails",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexandrmotologa/n8n-nodes-guardrails.git"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && node scripts/copy-assets.js",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "nodes": [
+      "dist/nodes/Guardrails/Guardrails.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "n8n-workflow": "^1.71.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

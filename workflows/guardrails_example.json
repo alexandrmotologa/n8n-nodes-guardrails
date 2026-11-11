@@ -1,0 +1,177 @@
+{
+  "name": "AI Guardrails Security Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "customer-support",
+        "responseMode": "responseNode"
+      },
+      "id": "node-webhook-1",
+      "name": "Customer Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "sanitize",
+        "inputSource": "text",
+        "inputText": "={{ $json.body.message }}",
+        "strategy": "tokens",
+        "checkInjection": true,
+        "sensitivity": "medium",
+        "actionOnInjection": "routeToAlert",
+        "detectCreditCards": true,
+        "detectIban": true,
+        "detectEmail": true,
+        "detectPhone": true,
+        "detectNationalId": true,
+        "detectIpAddress": true,
+        "detectSecrets": true
+      },
+      "id": "node-guardrails-sanitize",
+      "name": "Sanitize & Scan",
+      "type": "n8n-nodes-guardrails.guardrails",
+      "typeVersion": 1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      },
+      "id": "node-openai-llm",
+      "name": "OpenAI Model",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [720, 200]
+    },
+    {
+      "parameters": {
+        "operation": "rehydrate",
+        "rehydrateInputSource": "text",
+        "maskedText": "={{ $json.text }}",
+        "piiVault": "={{ $('Sanitize & Scan').item.json.piiVault }}"
+      },
+      "id": "node-guardrails-rehydrate",
+      "name": "Rehydrate PII",
+      "type": "n8n-nodes-guardrails.guardrails",
+      "typeVersion": 1,
+      "position": [960, 200]
+    },
+    {
+      "parameters": {
+        "operation": "circuit_breaker",
+        "model": "gpt-4o",
+        "promptTokens": 1500,
+        "completionTokens": 350,
+        "iterationCount": 1,
+        "maxCostUsd": 0.25,
+        "maxIterations": 10,
+        "actionOnBreach": "routeToAlert"
+      },
+      "id": "node-guardrails-circuit-breaker",
+      "name": "Spend Circuit Breaker",
+      "type": "n8n-nodes-guardrails.guardrails",
+      "typeVersion": 1,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'success', reply: $json.restoredText } }}"
+      },
+      "id": "node-respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1440, 200]
+    },
+    {
+      "parameters": {
+        "channel": "#security-alerts",
+        "text": "=Security Alert: Potential attack blocked: {{ $json.reason }} on input: {{ $json.rawInput }}"
+      },
+      "id": "node-slack-alert",
+      "name": "Slack Security Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [720, 420]
+    }
+  ],
+  "connections": {
+    "Customer Webhook": {
+      "main": [
+        [
+          {
+            "node": "Sanitize & Scan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize & Scan": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Model",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack Security Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model": {
+      "main": [
+        [
+          {
+            "node": "Rehydrate PII",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rehydrate PII": {
+      "main": [
+        [
+          {
+            "node": "Spend Circuit Breaker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spend Circuit Breaker": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack Security Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
