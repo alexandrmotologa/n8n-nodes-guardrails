@@ -1,6 +1,20 @@
-# n8n-nodes-guardrails
+<div align="center">
+  <img src="docs/images/logo.png?raw=true" alt="n8n-nodes-guardrails Logo" width="130" style="border-radius: 26px;" />
+  <h1>n8n-nodes-guardrails</h1>
+  <p><strong>Zero-leak bidirectional PII masking, prompt injection defense, spend circuit breaker, and GDPR audit engine for n8n AI workflows.</strong></p>
+  <p>
+    <a href="https://github.com/alexandrmotologa/n8n-nodes-guardrails/actions"><img src="https://img.shields.io/badge/tests-64%20passed-00e5a0.svg?style=flat-square" alt="Tests"></a>
+    <a href="https://www.npmjs.com/package/n8n-nodes-guardrails"><img src="https://img.shields.io/npm/v/n8n-nodes-guardrails.svg?style=flat-square&color=00c2ff" alt="npm version"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7b61ff.svg?style=flat-square" alt="License"></a>
+    <a href="https://n8n.io"><img src="https://img.shields.io/badge/n8n-community%20node-ff6d5a.svg?style=flat-square" alt="n8n Community"></a>
+  </p>
+</div>
 
-Official n8n community node providing bidirectional PII masking, adversarial prompt injection defense, compliance auditing, and execution budget circuit breaking for AI workflows.
+---
+
+<div align="center">
+  <img src="docs/images/n8n_nodes_guardrails_demo.gif" alt="n8n-nodes-guardrails Live Execution Demo" width="900" style="border-radius: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);" />
+</div>
 
 ---
 
@@ -16,6 +30,34 @@ Deploying Large Language Models in n8n workflows exposes automation pipelines to
 - Spend and Loop Circuit Breaker: Tracks cumulative token counts, prompt cache hits, reasoning tokens, and estimated costs across major model providers (OpenAI, Anthropic, Google Gemini, DeepSeek).
 - Compliance Auditing: Inspects text and JSON structures to generate GDPR and PCI-DSS readiness reports without altering payload data.
 - Defensive Prompt Wrapper: Wraps untrusted user submissions in defensive structural boundaries with sandwich defense instructions.
+
+---
+
+## Visual Tour
+
+### Enterprise Workflow Canvas
+Dual-branch decision engine routing sanitized payloads directly to LLMs while shunting adversarial injections to security alert streams.
+<p align="center">
+  <img src="docs/images/n8n_nodes_guardrails_dashboard.png" alt="Enterprise Workflow Canvas" width="900" style="border-radius: 10px;" />
+</p>
+
+### Verification and Test Suite
+64 unit and integration test suites validating authenticated AES-256-GCM encryption, Luhn Mod 10 checks, ISO 7064 IBANs, and multilingual injection heuristics.
+<p align="center">
+  <img src="docs/images/n8n_nodes_guardrails_terminal.png" alt="Test Execution Suite" width="900" style="border-radius: 10px;" />
+</p>
+
+### GDPR & PCI-DSS Audit Inspector
+Detailed compliance assessment reporting entity distributions, regulatory exposure tiers, and non-mutating preview masks.
+<p align="center">
+  <img src="docs/images/n8n_nodes_guardrails_audit.png" alt="Compliance Audit Inspector" width="900" style="border-radius: 10px;" />
+</p>
+
+### Responsive Operations Interface
+Compact layout for mobile and tablet monitoring across active automation clusters.
+<p align="center">
+  <img src="docs/images/n8n_nodes_guardrails_mobile.png" alt="Responsive Operations View" width="900" style="border-radius: 10px;" />
+</p>
 
 ---
 
@@ -126,6 +168,7 @@ Inbound Webhook / Chat
 │ - Masks PII to {{TOKEN_N}}              │
 │ - Evaluates prompt injection risk       │
 │ - Injects ephemeral canary token        │
+│ - Encrypts map with AES-256-GCM         │
 └─────────────────────────────────────────┘
           │
           ├── Safe ─────────────► [ OpenAI / Claude Model Node ]

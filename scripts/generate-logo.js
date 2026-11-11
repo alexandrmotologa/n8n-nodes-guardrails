@@ -1,0 +1,209 @@
+const fs = require('fs');
+const path = require('path');
+const { Resvg } = require('@resvg/resvg-js');
+
+function buildLogoSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <clipPath id="squircle-clip">
+      <rect x="24" y="24" width="976" height="976" rx="220" />
+    </clipPath>
+
+    <linearGradient id="cyan-optics" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f5ff"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+
+    <linearGradient id="amber-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+
+    <linearGradient id="facet-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#475569"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+
+    <linearGradient id="facet-mid" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+
+    <linearGradient id="facet-dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+
+    <linearGradient id="shield-core" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0369a1"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+
+    <filter id="subtle-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.14" />
+    </filter>
+  </defs>
+
+  <!-- Luxury White Squircle Container -->
+  <rect x="24" y="24" width="976" height="976" rx="220" fill="#ffffff" stroke="#e2e8f0" stroke-width="6" />
+
+  <g clip-path="url(#squircle-clip)">
+    <g transform="translate(512, 512)" filter="url(#subtle-shadow)">
+
+      <!-- Hexagonal Architectural Gateway -->
+      <polygon points="
+        0,-390
+        338,-195
+        338,195
+        0,390
+        -338,195
+        -338,-195
+      " fill="none" stroke="#0f172a" stroke-width="40" stroke-linejoin="round" />
+
+      <polygon points="
+        0,-355
+        307,-177
+        307,177
+        0,355
+        -307,177
+        -307,-177
+      " fill="none" stroke="#00f5ff" stroke-width="4" opacity="0.4" stroke-dasharray="16, 12" />
+
+      <!-- Symmetrical Aegis Falcon (Cyber Peregrine Sentinel) -->
+      <!-- 100% Watertight Solid Base Silhouette -->
+      <path d="
+        M0,-270
+        L45,-215 L85,-235 L145,-165 L175,-175 L215,-95 L260,-20 L275,65 L245,155 L180,240 L105,285 L0,325
+        L-105,285 L-180,240 L-245,155 L-275,65 L-260,-20 L-215,-95 L-175,-175 L-145,-165 L-85,-235 L-45,-215
+        Z
+      " fill="#0b0f19" />
+
+      <!-- Outer Wing Armor Facets (Right Side) -->
+      <polygon points="145,-165 215,-95 165,-75" fill="url(#facet-mid)" />
+      <polygon points="215,-95 260,-20 190,-10" fill="url(#facet-dark)" />
+      <polygon points="260,-20 275,65 210,60" fill="url(#facet-mid)" />
+      <polygon points="275,65 245,155 185,135" fill="url(#facet-dark)" />
+      <polygon points="245,155 180,240 135,195" fill="url(#facet-mid)" />
+      <polygon points="180,240 105,285 75,230" fill="url(#facet-dark)" />
+
+      <!-- Outer Wing Armor Facets (Left Side - Symmetrical) -->
+      <polygon points="-145,-165 -215,-95 -165,-75" fill="url(#facet-light)" />
+      <polygon points="-215,-95 -260,-20 -190,-10" fill="url(#facet-mid)" />
+      <polygon points="-260,-20 -275,65 -210,60" fill="url(#facet-light)" />
+      <polygon points="-275,65 -245,155 -185,135" fill="url(#facet-mid)" />
+      <polygon points="-245,155 -180,240 -135,195" fill="url(#facet-light)" />
+      <polygon points="-180,240 -105,285 -75,230" fill="url(#facet-mid)" />
+
+      <!-- Secondary Armor Guardrails (Right) -->
+      <polygon points="165,-75 215,-95 190,-10 130,-25" fill="#334155" />
+      <polygon points="190,-10 260,-20 210,60 145,35" fill="#1e293b" />
+      <polygon points="210,60 275,65 185,135 130,105" fill="#334155" />
+      <polygon points="185,135 245,155 135,195 95,160" fill="#1e293b" />
+
+      <!-- Secondary Armor Guardrails (Left) -->
+      <polygon points="-165,-75 -215,-95 -190,-10 -130,-25" fill="#475569" />
+      <polygon points="-190,-10 -260,-20 -210,60 -145,35" fill="#334155" />
+      <polygon points="-210,60 -275,65 -185,135 -130,105" fill="#475569" />
+      <polygon points="-185,135 -245,155 -135,195 -95,160" fill="#334155" />
+
+      <!-- Falcon Craniofacial Crest & Forehead -->
+      <polygon points="0,-270 45,-215 0,-185" fill="#475569" />
+      <polygon points="0,-270 -45,-215 0,-185" fill="#64748b" />
+      <polygon points="45,-215 85,-235 75,-165 0,-185" fill="#334155" />
+      <polygon points="-45,-215 -85,-235 -75,-165 0,-185" fill="#475569" />
+      <polygon points="85,-235 145,-165 110,-125 75,-165" fill="#1e293b" />
+      <polygon points="-85,-235 -145,-165 -110,-125 -75,-165" fill="#334155" />
+
+      <!-- Brow Armor & Brow Ridge -->
+      <polygon points="0,-185 75,-165 55,-115 0,-135" fill="#475569" />
+      <polygon points="0,-185 -75,-165 -55,-115 0,-135" fill="#64748b" />
+      <polygon points="75,-165 110,-125 80,-95 55,-115" fill="#1e293b" />
+      <polygon points="-75,-165 -110,-125 -80,-95 -55,-115" fill="#334155" />
+
+      <!-- Electric Cyan Predator Eyes (Geometric Almond Slanted) -->
+      <!-- Right Eye Socket & Lens -->
+      <polygon points="50,-105 85,-85 65,-70 35,-85" fill="#0b0f19" />
+      <polygon points="52,-100 80,-85 64,-73 40,-85" fill="url(#cyan-optics)" />
+      <polygon points="58,-93 72,-85 62,-78 48,-85" fill="#ffffff" opacity="0.8" />
+
+      <!-- Left Eye Socket & Lens (Symmetrical) -->
+      <polygon points="-50,-105 -85,-85 -65,-70 -35,-85" fill="#0b0f19" />
+      <polygon points="-52,-100 -80,-85 -64,-73 -40,-85" fill="url(#cyan-optics)" />
+      <polygon points="-58,-93 -72,-85 -62,-78 -48,-85" fill="#ffffff" opacity="0.8" />
+
+      <!-- Malar Stripes (Low-Poly Cheek Facets) -->
+      <polygon points="65,-70 85,-85 105,-35 70,-30" fill="#0f172a" />
+      <polygon points="70,-30 105,-35 95,25 60,15" fill="#1e293b" />
+      <polygon points="-65,-70 -85,-85 -105,-35 -70,-30" fill="#0f172a" />
+      <polygon points="-70,-30 -105,-35 -95,25 -60,15" fill="#1e293b" />
+
+      <!-- Falcon Beak & Nares (Curved Raptor Edge) -->
+      <polygon points="0,-135 28,-90 0,-65" fill="#fbbf24" />
+      <polygon points="0,-135 -28,-90 0,-65" fill="#f59e0b" />
+      <polygon points="0,-65 24,-65 0,-15" fill="url(#amber-accent)" />
+      <polygon points="0,-65 -24,-65 0,-15" fill="#d97706" />
+      <!-- Sharp Beak Hook -->
+      <polygon points="0,-15 12,-35 0,10 -12,-35" fill="#b45309" />
+
+      <!-- Throat & Neck Armor Track (Guardrail Plate Layers) -->
+      <polygon points="0,-15 35,25 0,55" fill="#334155" />
+      <polygon points="0,-15 -35,25 0,55" fill="#475569" />
+      <polygon points="35,25 60,15 50,75 0,95 0,55" fill="#1e293b" />
+      <polygon points="-35,25 -60,15 -50,75 0,95 0,55" fill="#334155" />
+
+      <!-- Central Aegis Shield Core (Vault Protector Emblem) -->
+      <!-- Shield Plate Frame -->
+      <path d="M0,85 L65,120 L55,215 L0,270 L-55,215 L-65,120 Z" fill="url(#shield-core)" stroke="#00f5ff" stroke-width="4" stroke-linejoin="round" />
+      <!-- Inner Shield Highlight -->
+      <path d="M0,105 L45,130 L38,195 L0,240 L-38,195 L-45,130 Z" fill="#0f172a" opacity="0.6" />
+
+      <!-- Guardrails Lattice Lines on Shield (Zero-Leak Barrier) -->
+      <line x1="-32" y1="140" x2="32" y2="140" stroke="#00f5ff" stroke-width="3" stroke-linecap="round" opacity="0.9" />
+      <line x1="-28" y1="170" x2="28" y2="170" stroke="#00f5ff" stroke-width="3" stroke-linecap="round" opacity="0.9" />
+      <line x1="-20" y1="200" x2="20" y2="200" stroke="#00f5ff" stroke-width="3" stroke-linecap="round" opacity="0.9" />
+      <line x1="0" y1="125" x2="0" y2="225" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+
+      <!-- Chest Keel & Abdomen Facets -->
+      <polygon points="0,270 55,215 105,285 0,325" fill="#0f172a" />
+      <polygon points="0,270 -55,215 -105,285 0,325" fill="#1e293b" />
+      <polygon points="55,215 135,195 105,285" fill="#1e293b" />
+      <polygon points="-55,215 -135,195 -105,285" fill="#334155" />
+
+      <!-- Subtle Circuit Breaker Pulse Node at Apex -->
+      <circle cx="0" cy="-270" r="6" fill="#00f5ff" />
+      <circle cx="0" cy="325" r="5" fill="#00f5ff" />
+    </g>
+  </g>
+</svg>`;
+}
+
+async function renderLogo() {
+  const imagesDir = path.join(__dirname, '..', 'docs', 'images');
+  if (!fs.existsSync(imagesDir)) {
+    fs.mkdirSync(imagesDir, { recursive: true });
+  }
+
+  const svg = buildLogoSvg();
+  const svgPath = path.join(imagesDir, 'logo.svg');
+  const pngPath = path.join(imagesDir, 'logo.png');
+
+  fs.writeFileSync(svgPath, svg, 'utf8');
+  console.log(`Saved logo SVG to: ${svgPath}`);
+
+  const resvg = new Resvg(svg, {
+    fitTo: {
+      mode: 'width',
+      value: 1024,
+    },
+  });
+
+  const pngData = resvg.render();
+  const pngBuffer = pngData.asPng();
+  fs.writeFileSync(pngPath, pngBuffer);
+  console.log(`Rendered logo PNG to: ${pngPath} (1024x1024)`);
+}
+
+renderLogo().catch((err) => {
+  console.error('Failed to render logo:', err);
+  process.exit(1);
+});
