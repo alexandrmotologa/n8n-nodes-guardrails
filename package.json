@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-guardrails",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "n8n community node for zero-leak bidirectional PII masking, prompt injection defense, and LLM budget circuit breaking",
   "keywords": [
     "n8n-community-node-package",

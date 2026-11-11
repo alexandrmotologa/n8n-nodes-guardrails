@@ -10,7 +10,9 @@ import { sanitize, MaskingStrategy, SanitizeOptions } from './operations/sanitiz
 import { rehydrate, RehydrateOptions } from './operations/rehydrate';
 import { checkInjection, InjectionSensitivity } from './operations/injection_check';
 import { evaluateCircuitBreaker, CircuitBreakerOptions } from './operations/circuit_breaker';
-import { CustomPattern } from './utils/pii_patterns';
+import { auditPii, AuditOptions } from './operations/audit';
+import { wrapPrompt, FramingStyle, WrapPromptOptions } from './operations/wrap_prompt';
+import { CustomPattern, TokenFormat } from './utils/pii_patterns';
 
 export class Guardrails implements INodeType {
   description: INodeTypeDescription = {
@@ -38,13 +40,15 @@ export class Guardrails implements INodeType {
           { name: 'Rehydrate PII', value: 'rehydrate' },
           { name: 'Scan Prompt Injection', value: 'injection_check' },
           { name: 'Enforce Cost & Loop Limit', value: 'circuit_breaker' },
+          { name: 'Audit PII & Compliance Report', value: 'audit' },
+          { name: 'Defensive Prompt Wrapper', value: 'wrap_prompt' },
         ],
         default: 'sanitize',
         description: 'The security action to perform on inbound or outbound AI payloads',
       },
 
       // -----------------------------------------------------------
-      // OPERATION: sanitize
+      // OPERATION: sanitize, injection_check, audit
       // -----------------------------------------------------------
       {
         displayName: 'Input Source',
@@ -52,7 +56,7 @@ export class Guardrails implements INodeType {
         type: 'options',
         displayOptions: {
           show: {
-            operation: ['sanitize', 'injection_check'],
+            operation: ['sanitize', 'injection_check', 'audit'],
           },
         },
         options: [
@@ -70,7 +74,7 @@ export class Guardrails implements INodeType {
         required: true,
         displayOptions: {
           show: {
-            operation: ['sanitize', 'injection_check'],
+            operation: ['sanitize', 'injection_check', 'audit'],
             inputSource: ['text'],
           },
         },
@@ -85,7 +89,7 @@ export class Guardrails implements INodeType {
         required: true,
         displayOptions: {
           show: {
-            operation: ['sanitize', 'injection_check'],
+            operation: ['sanitize', 'injection_check', 'audit'],
             inputSource: ['json'],
           },
         },
@@ -124,6 +128,90 @@ export class Guardrails implements INodeType {
         ],
         default: 'tokens',
         description: 'How detected sensitive entities should be transformed',
+      },
+      {
+        displayName: 'Token Format',
+        name: 'tokenFormat',
+        type: 'options',
+        displayOptions: {
+          show: {
+            operation: ['sanitize'],
+            strategy: ['tokens'],
+          },
+        },
+        options: [
+          { name: 'Mustache ({{TYPE_N}})', value: 'mustache' },
+          { name: 'XML Tag (<PII_TYPE_N/>)', value: 'xml' },
+          { name: 'Bracket ([PII_TYPE_N])', value: 'bracket' },
+        ],
+        default: 'mustache',
+        description: 'Format style for generated synthetic placeholders',
+      },
+      {
+        displayName: 'Deterministic Tokenization',
+        name: 'deterministicTokens',
+        type: 'boolean',
+        default: true,
+        displayOptions: {
+          show: {
+            operation: ['sanitize'],
+            strategy: ['tokens'],
+          },
+        },
+        description: 'Whether identical sensitive values share the same token to preserve model semantic context',
+      },
+      {
+        displayName: 'Entity Allowlist (Safe Domains / Strings)',
+        name: 'allowlist',
+        type: 'string',
+        default: '',
+        displayOptions: {
+          show: {
+            operation: ['sanitize', 'audit'],
+          },
+        },
+        placeholder: 'e.g. @company.com, 10.0.0.1, support@acme.org',
+        description: 'Comma-separated domains, emails, or IP prefixes to exclude from masking',
+      },
+      {
+        displayName: 'Include JSON Paths',
+        name: 'includePaths',
+        type: 'string',
+        default: '',
+        displayOptions: {
+          show: {
+            operation: ['sanitize'],
+            inputSource: ['json'],
+          },
+        },
+        placeholder: 'e.g. message.content, user.notes, items.*.text',
+        description: 'Comma-separated dot paths to scan. Leave empty to scan all fields.',
+      },
+      {
+        displayName: 'Exclude JSON Paths',
+        name: 'excludePaths',
+        type: 'string',
+        default: '',
+        displayOptions: {
+          show: {
+            operation: ['sanitize'],
+            inputSource: ['json'],
+          },
+        },
+        placeholder: 'e.g. id, created_at, metadata.*',
+        description: 'Comma-separated dot paths to skip from scanning',
+      },
+      {
+        displayName: 'Inject Canary Token',
+        name: 'injectCanary',
+        type: 'boolean',
+        default: false,
+        displayOptions: {
+          show: {
+            operation: ['sanitize'],
+          },
+        },
+        description: 'Whether to inject a cryptographically random canary token to detect outbound model leaks',
       },
       {
         displayName: 'Check Prompt Injection',
@@ -200,7 +288,7 @@ export class Guardrails implements INodeType {
         default: true,
         displayOptions: {
           show: {
-            operation: ['sanitize'],
+            operation: ['sanitize', 'audit'],
           },
         },
         description: 'Whether to detect and validate credit card numbers using the Luhn algorithm',
@@ -212,7 +300,7 @@ export class Guardrails implements INodeType {
         default: true,
         displayOptions: {
           show: {
-            operation: ['sanitize'],
+            operation: ['sanitize', 'audit'],
           },
         },
         description: 'Whether to detect international bank account numbers using Modulo 97 verification',
@@ -224,7 +312,7 @@ export class Guardrails implements INodeType {
         default: true,
         displayOptions: {
           show: {
-            operation: ['sanitize'],
+            operation: ['sanitize', 'audit'],
           },
         },
         description: 'Whether to detect email addresses',
@@ -236,7 +324,7 @@ export class Guardrails implements INodeType {
         default: true,
         displayOptions: {
           show: {
-            operation: ['sanitize'],
+            operation: ['sanitize', 'audit'],
           },
         },
         description: 'Whether to detect international and local phone numbers',
@@ -248,7 +336,7 @@ export class Guardrails implements INodeType {
         default: true,
         displayOptions: {
           show: {
-            operation: ['sanitize'],
+            operation: ['sanitize', 'audit'],
           },
         },
         description: 'Whether to detect US Social Security numbers and Romanian CNP identifiers with checksum validation',
@@ -260,7 +348,7 @@ export class Guardrails implements INodeType {
         default: true,
         displayOptions: {
           show: {
-            operation: ['sanitize'],
+            operation: ['sanitize', 'audit'],
           },
         },
         description: 'Whether to detect IPv4 and IPv6 network addresses',
@@ -272,7 +360,7 @@ export class Guardrails implements INodeType {
         default: true,
         displayOptions: {
           show: {
-            operation: ['sanitize'],
+            operation: ['sanitize', 'audit'],
           },
         },
         description: 'Whether to detect OpenAI keys, AWS access keys, GitHub tokens, and private keys',
@@ -288,7 +376,7 @@ export class Guardrails implements INodeType {
         default: {},
         displayOptions: {
           show: {
-            operation: ['sanitize'],
+            operation: ['sanitize', 'audit'],
           },
         },
         options: [
@@ -394,12 +482,18 @@ export class Guardrails implements INodeType {
           { name: 'OpenAI - GPT-4 Turbo', value: 'gpt-4-turbo' },
           { name: 'OpenAI - o1', value: 'o1' },
           { name: 'OpenAI - o1-mini', value: 'o1-mini' },
+          { name: 'OpenAI - o3-mini', value: 'o3-mini' },
+          { name: 'OpenAI - GPT-4.5 Preview', value: 'gpt-4.5-preview' },
+          { name: 'Anthropic - Claude 3.7 Sonnet (Hybrid)', value: 'claude-3-7-sonnet' },
           { name: 'Anthropic - Claude 3.5 Sonnet', value: 'claude-3-5-sonnet' },
           { name: 'Anthropic - Claude 3.5 Haiku', value: 'claude-3-5-haiku' },
           { name: 'Anthropic - Claude 3 Opus', value: 'claude-3-opus' },
+          { name: 'Google - Gemini 2.0 Flash', value: 'gemini-2-0-flash' },
+          { name: 'Google - Gemini 2.0 Pro', value: 'gemini-2-0-pro' },
           { name: 'Google - Gemini 1.5 Pro', value: 'gemini-1-5-pro' },
           { name: 'Google - Gemini 1.5 Flash', value: 'gemini-1-5-flash' },
-          { name: 'Google - Gemini 2.0 Flash', value: 'gemini-2-0-flash' },
+          { name: 'DeepSeek - V3 (Chat)', value: 'deepseek-chat' },
+          { name: 'DeepSeek - R1 (Reasoner)', value: 'deepseek-reasoner' },
           { name: 'Custom Pricing', value: 'custom' },
         ],
         default: 'gpt-4o',
@@ -444,6 +538,18 @@ export class Guardrails implements INodeType {
         description: 'Cumulative prompt tokens consumed in this workflow execution',
       },
       {
+        displayName: 'Cached Prompt Tokens',
+        name: 'cachedPromptTokens',
+        type: 'number',
+        default: 0,
+        displayOptions: {
+          show: {
+            operation: ['circuit_breaker'],
+          },
+        },
+        description: 'Number of input tokens served from provider prompt cache (discounted)',
+      },
+      {
         displayName: 'Completion Tokens',
         name: 'completionTokens',
         type: 'number',
@@ -454,6 +560,18 @@ export class Guardrails implements INodeType {
           },
         },
         description: 'Cumulative generated tokens consumed in this workflow execution',
+      },
+      {
+        displayName: 'Reasoning / Thinking Tokens',
+        name: 'reasoningTokens',
+        type: 'number',
+        default: 0,
+        displayOptions: {
+          show: {
+            operation: ['circuit_breaker'],
+          },
+        },
+        description: 'Internal thought / reasoning tokens generated (e.g. o1/o3/R1/Claude 3.7)',
       },
       {
         displayName: 'Current Iteration Count',
@@ -515,6 +633,66 @@ export class Guardrails implements INodeType {
         default: 'routeToAlert',
         description: 'How to handle budget or loop depth breaches',
       },
+
+      // -----------------------------------------------------------
+      // OPERATION: wrap_prompt
+      // -----------------------------------------------------------
+      {
+        displayName: 'Prompt Text to Wrap',
+        name: 'wrapPromptText',
+        type: 'string',
+        default: '',
+        required: true,
+        displayOptions: {
+          show: {
+            operation: ['wrap_prompt'],
+          },
+        },
+        placeholder: 'e.g. {{$json.userQuery}}',
+        description: 'The untrusted user prompt to frame within a secure boundary',
+      },
+      {
+        displayName: 'Framing Style',
+        name: 'framingStyle',
+        type: 'options',
+        displayOptions: {
+          show: {
+            operation: ['wrap_prompt'],
+          },
+        },
+        options: [
+          { name: 'XML Boundary (Recommended for Claude / Gemini)', value: 'xml_boundary' },
+          { name: 'Markdown Boundary', value: 'markdown_boundary' },
+          { name: 'JSON Schema Envelope', value: 'json_schema' },
+        ],
+        default: 'xml_boundary',
+        description: 'The defensive delimiter structure to apply around untrusted text',
+      },
+      {
+        displayName: 'Custom Tag Name',
+        name: 'customTagName',
+        type: 'string',
+        default: 'user_data_untrusted',
+        displayOptions: {
+          show: {
+            operation: ['wrap_prompt'],
+            framingStyle: ['xml_boundary'],
+          },
+        },
+        description: 'Name of the enclosing XML element tag',
+      },
+      {
+        displayName: 'Enforce Sandwich Defense',
+        name: 'enforceSandwichDefense',
+        type: 'boolean',
+        default: true,
+        displayOptions: {
+          show: {
+            operation: ['wrap_prompt'],
+          },
+        },
+        description: 'Appends a reinforcing trailing instruction advising the model to treat data strictly as passive input',
+      },
     ],
   };
 
@@ -568,8 +746,8 @@ export class Guardrails implements INodeType {
                   category: injectionResult.category,
                   riskScore: injectionResult.riskScore,
                   reason: injectionResult.reason,
-                  matchedRules: injectionResult.matchedRules,
-                  rawInput,
+                  matchedRules: injectionResult.matchedRules as unknown as IDataObject[],
+                  rawInput: rawInput as unknown as IDataObject,
                 },
                 pairedItem: { item: i },
               });
@@ -579,7 +757,29 @@ export class Guardrails implements INodeType {
 
           // 2. Perform PII sanitization
           const strategy = this.getNodeParameter('strategy', i, 'tokens') as MaskingStrategy;
+          const tokenFormat = this.getNodeParameter('tokenFormat', i, 'mustache') as TokenFormat;
+          const deterministicTokens = this.getNodeParameter('deterministicTokens', i, true) as boolean;
           const vaultSecret = this.getNodeParameter('vaultSecret', i, '') as string;
+          const injectCanary = this.getNodeParameter('injectCanary', i, false) as boolean;
+
+          const allowlistStr = this.getNodeParameter('allowlist', i, '') as string;
+          const allowlist = allowlistStr
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+
+          const includePathsStr = this.getNodeParameter('includePaths', i, '') as string;
+          const includePaths = includePathsStr
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+
+          const excludePathsStr = this.getNodeParameter('excludePaths', i, '') as string;
+          const excludePaths = excludePathsStr
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+
           const detectCreditCards = this.getNodeParameter('detectCreditCards', i, true) as boolean;
           const detectIban = this.getNodeParameter('detectIban', i, true) as boolean;
           const detectEmail = this.getNodeParameter('detectEmail', i, true) as boolean;
@@ -595,6 +795,12 @@ export class Guardrails implements INodeType {
 
           const sanitizeOpts: SanitizeOptions = {
             strategy,
+            tokenFormat,
+            deterministicTokens,
+            allowlist: allowlist.length > 0 ? allowlist : undefined,
+            includePaths: includePaths.length > 0 ? includePaths : undefined,
+            excludePaths: excludePaths.length > 0 ? excludePaths : undefined,
+            injectCanary,
             vaultSecret: vaultSecret || undefined,
             detectCreditCards,
             detectIban,
@@ -614,6 +820,9 @@ export class Guardrails implements INodeType {
             entities: sanitizeResult.entities as unknown as IDataObject[],
           };
 
+          if (sanitizeResult.canaryToken) {
+            outputJson.canaryToken = sanitizeResult.canaryToken;
+          }
           if (sanitizeResult.sanitizedText !== undefined) {
             outputJson.sanitizedText = sanitizeResult.sanitizedText;
           }
@@ -652,8 +861,22 @@ export class Guardrails implements INodeType {
 
           const result = rehydrate(targetInput, piiVault, rehydrateOpts);
 
+          if (result.canaryLeaked) {
+            alertData.push({
+              json: {
+                status: 'DATA_LEAK_ALERT',
+                canaryLeaked: true,
+                reason: 'Critical: Ephemeral canary token was detected in outbound model response',
+                restoredCount: result.restoredCount,
+                rawInput: targetInput as unknown as IDataObject,
+              },
+              pairedItem: { item: i },
+            });
+          }
+
           const outputJson: IDataObject = {
             restoredCount: result.restoredCount,
+            canaryLeaked: result.canaryLeaked ?? false,
           };
           if (result.restoredText !== undefined) {
             outputJson.restoredText = result.restoredText;
@@ -704,8 +927,8 @@ export class Guardrails implements INodeType {
                 category: result.category,
                 riskScore: result.riskScore,
                 reason: result.reason,
-                matchedRules: result.matchedRules,
-                rawInput,
+                matchedRules: result.matchedRules as unknown as IDataObject[],
+                rawInput: rawInput as unknown as IDataObject,
               },
               pairedItem: { item: i },
             });
@@ -714,7 +937,7 @@ export class Guardrails implements INodeType {
               json: {
                 status: 'SAFE',
                 riskScore: result.riskScore,
-                input: rawInput,
+                input: rawInput as unknown as IDataObject,
               },
               pairedItem: { item: i },
             });
@@ -722,7 +945,9 @@ export class Guardrails implements INodeType {
         } else if (operation === 'circuit_breaker') {
           const model = this.getNodeParameter('model', i, 'gpt-4o') as string;
           const promptTokens = this.getNodeParameter('promptTokens', i, 0) as number;
+          const cachedPromptTokens = this.getNodeParameter('cachedPromptTokens', i, 0) as number;
           const completionTokens = this.getNodeParameter('completionTokens', i, 0) as number;
+          const reasoningTokens = this.getNodeParameter('reasoningTokens', i, 0) as number;
           const iterationCount = this.getNodeParameter('iterationCount', i, 1) as number;
           const maxCostUsd = this.getNodeParameter('maxCostUsd', i, 0.25) as number;
           const maxIterations = this.getNodeParameter('maxIterations', i, 10) as number;
@@ -733,7 +958,9 @@ export class Guardrails implements INodeType {
           const breakerOpts: CircuitBreakerOptions = {
             model,
             promptTokens,
+            cachedPromptTokens,
             completionTokens,
+            reasoningTokens,
             iterationCount,
             maxCostUsd,
             maxIterations,
@@ -760,7 +987,7 @@ export class Guardrails implements INodeType {
                 currentIteration: result.currentIteration,
                 totalTokens: result.totalTokens,
                 breachedReasons: result.breachedReasons,
-                limits: result.limits,
+                limits: result.limits as unknown as IDataObject,
               },
               pairedItem: { item: i },
             });
@@ -772,11 +999,93 @@ export class Guardrails implements INodeType {
                 estimatedCostUsd: result.estimatedCostUsd,
                 currentIteration: result.currentIteration,
                 totalTokens: result.totalTokens,
-                limits: result.limits,
+                limits: result.limits as unknown as IDataObject,
               },
               pairedItem: { item: i },
             });
           }
+        } else if (operation === 'audit') {
+          const inputSource = this.getNodeParameter('inputSource', i, 'text') as string;
+          let rawInput: string | Record<string, unknown> | unknown[];
+
+          if (inputSource === 'text') {
+            rawInput = this.getNodeParameter('inputText', i, '') as string;
+          } else {
+            const jsonParam = this.getNodeParameter('inputJson', i, {}) as unknown;
+            if (typeof jsonParam === 'string') {
+              try {
+                rawInput = JSON.parse(jsonParam);
+              } catch {
+                rawInput = jsonParam;
+              }
+            } else {
+              rawInput = jsonParam as Record<string, unknown>;
+            }
+          }
+
+          const allowlistStr = this.getNodeParameter('allowlist', i, '') as string;
+          const allowlist = allowlistStr
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+
+          const detectCreditCards = this.getNodeParameter('detectCreditCards', i, true) as boolean;
+          const detectIban = this.getNodeParameter('detectIban', i, true) as boolean;
+          const detectEmail = this.getNodeParameter('detectEmail', i, true) as boolean;
+          const detectPhone = this.getNodeParameter('detectPhone', i, true) as boolean;
+          const detectNationalId = this.getNodeParameter('detectNationalId', i, true) as boolean;
+          const detectIpAddress = this.getNodeParameter('detectIpAddress', i, true) as boolean;
+          const detectSecrets = this.getNodeParameter('detectSecrets', i, true) as boolean;
+
+          const customPatternsRaw = this.getNodeParameter('customPatterns', i, {}) as {
+            patterns?: Array<{ name: string; regex: string }>;
+          };
+          const customPatterns: CustomPattern[] = customPatternsRaw.patterns || [];
+
+          const auditOpts: AuditOptions = {
+            allowlist: allowlist.length > 0 ? allowlist : undefined,
+            detectCreditCards,
+            detectIban,
+            detectEmail,
+            detectPhone,
+            detectNationalId,
+            detectIpAddress,
+            detectSecrets,
+            customPatterns,
+            includeOffsets: true,
+          };
+
+          const report = auditPii(rawInput, auditOpts);
+
+          returnData.push({
+            json: {
+              ...report,
+              rawInput: rawInput as unknown as IDataObject,
+            } as unknown as IDataObject,
+            pairedItem: { item: i },
+          });
+        } else if (operation === 'wrap_prompt') {
+          const promptText = this.getNodeParameter('wrapPromptText', i, '') as string;
+          const framingStyle = this.getNodeParameter('framingStyle', i, 'xml_boundary') as FramingStyle;
+          const customTagName = this.getNodeParameter('customTagName', i, 'user_data_untrusted') as string;
+          const enforceSandwichDefense = this.getNodeParameter('enforceSandwichDefense', i, true) as boolean;
+
+          const wrapResult = wrapPrompt(promptText, {
+            framingStyle,
+            customTagName,
+            enforceSandwichDefense,
+          });
+
+          returnData.push({
+            json: {
+              wrappedPrompt: wrapResult.wrappedPrompt,
+              framingStyle: wrapResult.framingStyle,
+              tagUsed: wrapResult.tagUsed,
+              originalLength: promptText.length,
+              wrappedLength: wrapResult.wrappedPrompt.length,
+            },
+            pairedItem: { item: i },
+          });
         }
       } catch (error) {
         if (this.continueOnFail()) {

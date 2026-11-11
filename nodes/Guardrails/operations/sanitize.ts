@@ -4,6 +4,8 @@ import {
   DetectedEntity,
   DetectionOptions,
   PiiEntityType,
+  TokenFormat,
+  formatToken,
 } from '../utils/pii_patterns';
 import { encryptVault, VaultEntity, VaultPayload } from '../utils/crypto';
 
@@ -11,6 +13,11 @@ export type MaskingStrategy = 'tokens' | 'redaction' | 'partial' | 'hash';
 
 export interface SanitizeOptions extends DetectionOptions {
   strategy?: MaskingStrategy;
+  tokenFormat?: TokenFormat;
+  deterministicTokens?: boolean;
+  includePaths?: string[];
+  excludePaths?: string[];
+  injectCanary?: boolean;
   vaultSecret?: string;
   hashSalt?: string;
 }
@@ -21,6 +28,7 @@ export interface SanitizeResult {
   piiVault: string;
   detectedPiiCount: number;
   entities: DetectedEntity[];
+  canaryToken?: string;
 }
 
 /**
@@ -65,12 +73,47 @@ function createHashMask(original: string, salt: string): string {
 }
 
 /**
+ * Matches a property dot-path against wildcard patterns (e.g. 'users.*.email').
+ */
+function matchesPathPattern(path: string, pattern: string): boolean {
+  if (pattern === '*' || pattern === path) return true;
+  const regexPattern =
+    '^' +
+    pattern
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '[^.]+') +
+    '$';
+  return new RegExp(regexPattern).test(path);
+}
+
+/**
+ * Checks whether a given JSON property path should be sanitized.
+ */
+function shouldProcessPath(
+  path: string,
+  includePaths?: string[],
+  excludePaths?: string[],
+): boolean {
+  if (!path) return true;
+  if (excludePaths && excludePaths.length > 0) {
+    if (excludePaths.some((p) => matchesPathPattern(path, p.trim()))) {
+      return false;
+    }
+  }
+  if (includePaths && includePaths.length > 0) {
+    return includePaths.some((p) => matchesPathPattern(path, p.trim()));
+  }
+  return true;
+}
+
+/**
  * Masks a single string, collecting entity mappings.
  */
 export function maskString(
   text: string,
   options: SanitizeOptions,
   counterMap: Map<string, number>,
+  entityToTokenMap: Map<string, string>,
   vaultEntities: VaultEntity[],
   globalMapping: Record<string, string>,
 ): { masked: string; detected: DetectedEntity[] } {
@@ -84,7 +127,9 @@ export function maskString(
   }
 
   const strategy = options.strategy || 'tokens';
+  const format = options.tokenFormat || 'mustache';
   const salt = options.hashSalt || 'guardrails-salt';
+  const deterministic = options.deterministicTokens ?? false;
 
   let result = '';
   let cursor = 0;
@@ -96,11 +141,21 @@ export function maskString(
     const label = entity.customLabel || entity.type;
 
     if (strategy === 'tokens') {
-      const currentCount = (counterMap.get(label) || 0) + 1;
-      counterMap.set(label, currentCount);
-      const token = `{{${label}_${currentCount}}}`;
-      replacement = token;
+      const entityKey = `${label}::${entity.original.toLowerCase()}`;
+      let token: string;
 
+      if (deterministic && entityToTokenMap.has(entityKey)) {
+        token = entityToTokenMap.get(entityKey)!;
+      } else {
+        const currentCount = (counterMap.get(label) || 0) + 1;
+        counterMap.set(label, currentCount);
+        token = formatToken(label, currentCount, format);
+        if (deterministic) {
+          entityToTokenMap.set(entityKey, token);
+        }
+      }
+
+      replacement = token;
       globalMapping[token] = entity.original;
       vaultEntities.push({
         token,
@@ -125,35 +180,59 @@ export function maskString(
 }
 
 /**
- * Recursively traverses a JSON structure, masking all string values.
+ * Recursively traverses a JSON structure, masking string values on matched paths.
  */
 function traverseAndMaskJson(
   data: unknown,
   options: SanitizeOptions,
+  currentPath: string,
   counterMap: Map<string, number>,
+  entityToTokenMap: Map<string, string>,
   vaultEntities: VaultEntity[],
   globalMapping: Record<string, string>,
   allDetected: DetectedEntity[],
 ): unknown {
   if (typeof data === 'string') {
-    const { masked, detected } = maskString(data, options, counterMap, vaultEntities, globalMapping);
+    if (!shouldProcessPath(currentPath, options.includePaths, options.excludePaths)) {
+      return data;
+    }
+    const { masked, detected } = maskString(
+      data,
+      options,
+      counterMap,
+      entityToTokenMap,
+      vaultEntities,
+      globalMapping,
+    );
     allDetected.push(...detected);
     return masked;
   }
 
   if (Array.isArray(data)) {
-    return data.map((item) =>
-      traverseAndMaskJson(item, options, counterMap, vaultEntities, globalMapping, allDetected),
+    return data.map((item, idx) =>
+      traverseAndMaskJson(
+        item,
+        options,
+        currentPath ? `${currentPath}.${idx}` : `${idx}`,
+        counterMap,
+        entityToTokenMap,
+        vaultEntities,
+        globalMapping,
+        allDetected,
+      ),
     );
   }
 
   if (data !== null && typeof data === 'object') {
     const newObj: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+      const nextPath = currentPath ? `${currentPath}.${key}` : key;
       newObj[key] = traverseAndMaskJson(
         value,
         options,
+        nextPath,
         counterMap,
+        entityToTokenMap,
         vaultEntities,
         globalMapping,
         allDetected,
@@ -173,22 +252,41 @@ export function sanitize(
   options: SanitizeOptions = {},
 ): SanitizeResult {
   const counterMap = new Map<string, number>();
+  const entityToTokenMap = new Map<string, string>();
   const vaultEntities: VaultEntity[] = [];
   const globalMapping: Record<string, string> = {};
   const allDetected: DetectedEntity[] = [];
+
+  let canaryToken: string | undefined;
+  if (options.injectCanary) {
+    canaryToken = `[SEC_CANARY_${crypto.randomBytes(5).toString('hex')}]`;
+  }
 
   let sanitizedText: string | undefined;
   let sanitizedJson: unknown | undefined;
 
   if (typeof input === 'string') {
-    const { masked, detected } = maskString(input, options, counterMap, vaultEntities, globalMapping);
+    let processedInput = input;
+    if (canaryToken) {
+      processedInput = `${processedInput} <!-- canary: ${canaryToken} -->`;
+    }
+    const { masked, detected } = maskString(
+      processedInput,
+      options,
+      counterMap,
+      entityToTokenMap,
+      vaultEntities,
+      globalMapping,
+    );
     sanitizedText = masked;
     allDetected.push(...detected);
   } else {
     sanitizedJson = traverseAndMaskJson(
       input,
       options,
+      '',
       counterMap,
+      entityToTokenMap,
       vaultEntities,
       globalMapping,
       allDetected,
@@ -200,6 +298,7 @@ export function sanitize(
     createdAt: new Date().toISOString(),
     mapping: globalMapping,
     entities: vaultEntities,
+    canaryToken,
   };
 
   const piiVault = encryptVault(vaultPayload, options.vaultSecret);
@@ -210,5 +309,6 @@ export function sanitize(
     piiVault,
     detectedPiiCount: allDetected.length,
     entities: allDetected,
+    canaryToken,
   };
 }

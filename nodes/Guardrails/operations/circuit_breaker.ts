@@ -4,6 +4,8 @@ export interface CircuitBreakerOptions {
   model?: string;
   promptTokens?: number;
   completionTokens?: number;
+  cachedPromptTokens?: number;
+  reasoningTokens?: number;
   iterationCount?: number;
   maxCostUsd?: number;
   maxIterations?: number;
@@ -31,16 +33,20 @@ export function evaluateCircuitBreaker(options: CircuitBreakerOptions): CircuitB
   const model = options.model || 'gpt-4o';
   const promptTokens = Math.max(0, options.promptTokens || 0);
   const completionTokens = Math.max(0, options.completionTokens || 0);
-  const totalTokens = promptTokens + completionTokens;
+  const cachedPromptTokens = Math.max(0, options.cachedPromptTokens || 0);
+  const reasoningTokens = Math.max(0, options.reasoningTokens || 0);
+  const totalTokens = promptTokens + completionTokens + reasoningTokens;
   const iterationCount = Math.max(0, options.iterationCount || 1);
 
-  const estimatedCostUsd = calculateTokenCostUsd(
-    model,
+  const estimatedCostUsd = calculateTokenCostUsd({
+    modelKey: model,
     promptTokens,
     completionTokens,
-    options.customInputRate,
-    options.customOutputRate,
-  );
+    cachedPromptTokens,
+    reasoningTokens,
+    customInputRate: options.customInputRate,
+    customOutputRate: options.customOutputRate,
+  });
 
   const breachedReasons: string[] = [];
 

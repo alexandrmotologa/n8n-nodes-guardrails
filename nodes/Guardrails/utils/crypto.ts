@@ -12,6 +12,7 @@ export interface VaultPayload {
   createdAt: string;
   mapping: Record<string, string>;
   entities: VaultEntity[];
+  canaryToken?: string;
 }
 
 const DEFAULT_SECRET = 'n8n-guardrails-ephemeral-key-seed-v1';

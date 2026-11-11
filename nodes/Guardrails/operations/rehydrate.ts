@@ -9,6 +9,7 @@ export interface RehydrateResult {
   restoredText?: string;
   restoredJson?: unknown;
   restoredCount: number;
+  canaryLeaked?: boolean;
 }
 
 /**
@@ -28,7 +29,6 @@ function restoreString(
   // Replace each mapped token
   for (const [token, original] of Object.entries(mapping)) {
     if (restored.includes(token)) {
-      // Use split and join to replace all occurrences efficiently
       const occurrences = restored.split(token).length - 1;
       if (occurrences > 0) {
         restored = restored.split(token).join(original);
@@ -70,6 +70,25 @@ function traverseAndRestoreJson(
 }
 
 /**
+ * Recursively inspects data to check if a canary token appears.
+ */
+function checkCanaryInPayload(data: unknown, canaryToken: string): boolean {
+  if (!canaryToken) return false;
+  if (typeof data === 'string') {
+    return data.includes(canaryToken);
+  }
+  if (Array.isArray(data)) {
+    return data.some((item) => checkCanaryInPayload(item, canaryToken));
+  }
+  if (data !== null && typeof data === 'object') {
+    return Object.values(data as Record<string, unknown>).some((val) =>
+      checkCanaryInPayload(val, canaryToken),
+    );
+  }
+  return false;
+}
+
+/**
  * Main rehydration function restoring masked tokens to their original values.
  */
 export function rehydrate(
@@ -83,6 +102,11 @@ export function rehydrate(
 
   const payload = decryptVault(piiVault, options.vaultSecret);
   const mapping = payload.mapping || {};
+
+  let canaryLeaked = false;
+  if (payload.canaryToken) {
+    canaryLeaked = checkCanaryInPayload(input, payload.canaryToken);
+  }
 
   let restoredText: string | undefined;
   let restoredJson: unknown | undefined;
@@ -102,5 +126,6 @@ export function rehydrate(
     restoredText,
     restoredJson,
     restoredCount,
+    canaryLeaked,
   };
 }

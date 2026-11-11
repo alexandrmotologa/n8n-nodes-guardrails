@@ -55,3 +55,40 @@ When building autonomous agents with loop cycles, place the Circuit Breaker insi
 6. Set **Max Cost Limit ($ USD)** to your budget (e.g. `0.25`).
 7. Set **Max Iteration Depth** to `5`.
 8. Connect Output 0 to the next agent tool step, and Output 1 to a graceful exit node.
+
+---
+
+## Pattern 3: PII Audit & Compliance Workflow
+
+Use this pattern to audit incoming CRM records or database entries for GDPR and PCI-DSS compliance without altering the data.
+
+```
+[ Database / CRM Trigger ]
+            │
+            ▼
+[ AI Guardrails: Audit ]
+            │
+            ├── High Risk / PCI Impact ──► [ Security Compliance Queue ]
+            └── Safe / Low Risk ─────────► [ Standard Processing ]
+```
+
+### Configuration Steps
+1. Add an **AI Guardrails** node connected to your database trigger.
+2. Set **Operation** to `Audit PII & Compliance Report`.
+3. Set **Input Source** to `JSON Object / Array` and pass `={{ $json }}`.
+4. Enable all desired detectors (Credit Cards, IBAN, National IDs, Emails).
+5. Downstream nodes can route based on `{{ $json.gdprRiskLevel }}` or `{{ $json.pciDssImpact }}`.
+
+---
+
+## Pattern 4: Defensive Prompt Framing Workflow
+
+When dealing with untrusted user input that will be concatenated into a larger system prompt, wrap the user content in defensive boundaries.
+
+### Configuration Steps
+1. Add an **AI Guardrails** node before the LLM prompt construction step.
+2. Set **Operation** to `Defensive Prompt Wrapper`.
+3. Set **Prompt Text to Wrap** to `={{ $json.query }}`.
+4. Set **Framing Style** to `XML Boundary (Recommended for Claude / Gemini)`.
+5. Set **Enforce Sandwich Defense** to `true`.
+6. Pass `{{ $json.wrappedPrompt }}` into your model input template.

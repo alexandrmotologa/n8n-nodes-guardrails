@@ -156,6 +156,42 @@ export interface DetectionOptions {
   detectIpAddress?: boolean;
   detectSecrets?: boolean;
   customPatterns?: CustomPattern[];
+  allowlist?: string[];
+}
+
+export type TokenFormat = 'mustache' | 'xml' | 'bracket';
+
+/**
+ * Formats a synthetic token according to the specified style.
+ */
+export function formatToken(label: string, index: number, format: TokenFormat = 'mustache'): string {
+  const cleanLabel = label.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+  switch (format) {
+    case 'xml':
+      return `<PII_${cleanLabel}_${index}/>`;
+    case 'bracket':
+      return `[PII_${cleanLabel}_${index}]`;
+    case 'mustache':
+    default:
+      return `{{${cleanLabel}_${index}}}`;
+  }
+}
+
+/**
+ * Checks whether an entity matches any rule in the allowlist.
+ */
+export function isAllowed(candidate: string, allowlist?: string[]): boolean {
+  if (!allowlist || allowlist.length === 0) return false;
+  const trimmed = candidate.trim().toLowerCase();
+  for (const item of allowlist) {
+    const rule = item.trim().toLowerCase();
+    if (!rule) continue;
+    if (trimmed === rule) return true;
+    if (rule.startsWith('@') && trimmed.endsWith(rule)) return true;
+    if (!rule.startsWith('@') && trimmed.endsWith('@' + rule)) return true;
+    if (trimmed.startsWith(rule)) return true;
+  }
+  return false;
 }
 
 /**
@@ -366,8 +402,13 @@ export function detectPiiEntities(text: string, options: DetectionOptions = {}):
     }
   }
 
+  // Filter out any entities present on the allowlist
+  const filteredEntities = options.allowlist && options.allowlist.length > 0
+    ? rawEntities.filter((e) => !isAllowed(e.original, options.allowlist))
+    : rawEntities;
+
   // Sort by start index ascending, longer matches first on overlap
-  rawEntities.sort((a, b) => {
+  filteredEntities.sort((a, b) => {
     if (a.startIndex !== b.startIndex) {
       return a.startIndex - b.startIndex;
     }
@@ -378,7 +419,7 @@ export function detectPiiEntities(text: string, options: DetectionOptions = {}):
   const nonOverlapping: DetectedEntity[] = [];
   let lastEnd = -1;
 
-  for (const entity of rawEntities) {
+  for (const entity of filteredEntities) {
     if (entity.startIndex >= lastEnd) {
       nonOverlapping.push(entity);
       lastEnd = entity.endIndex;

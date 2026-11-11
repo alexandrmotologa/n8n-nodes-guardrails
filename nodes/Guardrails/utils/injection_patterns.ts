@@ -4,7 +4,9 @@ export type AttackCategory =
   | 'JAILBREAK_PERSONA'
   | 'DELIMITER_BREAKOUT'
   | 'ENCODED_PAYLOAD'
-  | 'ROLEPLAY_BYPASS';
+  | 'ROLEPLAY_BYPASS'
+  | 'DATA_EXFILTRATION'
+  | 'MULTILINGUAL_OVERRIDE';
 
 export interface InjectionRule {
   id: string;
@@ -100,6 +102,52 @@ export const INJECTION_RULES: InjectionRule[] = [
     pattern: /(?:^|\n)#{1,4}\s*(?:System|Instruction|Assistant|Human):\s*/i,
     weight: 0.75,
     description: 'Markdown header delimiter imitating system frame',
+  },
+
+  // 6. Data Exfiltration Patterns
+  {
+    id: 'EXFIL_MARKDOWN_IMAGE',
+    category: 'DATA_EXFILTRATION',
+    pattern: /!\[.*?\]\((?:https?:)?\/\/[^\s)]+[?&](?:token|data|secret|pii|vault|leak|exfil|key)=[^)]*\)/i,
+    weight: 0.95,
+    description: 'Markdown image injection attempting side-channel data exfiltration',
+  },
+  {
+    id: 'EXFIL_RENDER_IMAGE_COMMAND',
+    category: 'DATA_EXFILTRATION',
+    pattern: /\b(?:render|display|output|show)\s+(?:an?\s+)?(?:markdown\s+)?image\s+(?:with|containing)\s+(?:the\s+)?(?:secret|key|vault|password|prompt|token)\b/i,
+    weight: 0.9,
+    description: 'Directive forcing the model to generate image tags for data exfiltration',
+  },
+
+  // 7. Multilingual Injection Overrides
+  {
+    id: 'MULTILINGUAL_RO_OVERRIDE',
+    category: 'MULTILINGUAL_OVERRIDE',
+    pattern: /\b(?:ignora|ignoreaza|uita)\s+(?:toate\s+)?(?:instructiunile|regulile)\s+(?:anterioare|precedente)\b/i,
+    weight: 0.95,
+    description: 'Romanian instruction override (ignora instructiunile anterioare)',
+  },
+  {
+    id: 'MULTILINGUAL_ES_OVERRIDE',
+    category: 'MULTILINGUAL_OVERRIDE',
+    pattern: /\b(?:ignora|olvida)\s+(?:todas\s+)?(?:las\s+)?(?:instrucciones|reglas)\s+(?:anteriores|previas)\b/i,
+    weight: 0.95,
+    description: 'Spanish instruction override (ignora las instrucciones anteriores)',
+  },
+  {
+    id: 'MULTILINGUAL_FR_OVERRIDE',
+    category: 'MULTILINGUAL_OVERRIDE',
+    pattern: /\b(?:ignore|oublie)\s+(?:toutes\s+)?(?:les\s+)?(?:instructions|directives)\s+(?:pr[eé]c[eé]dentes|ant[eé]rieures)\b/i,
+    weight: 0.95,
+    description: 'French instruction override (ignore les instructions precedentes)',
+  },
+  {
+    id: 'MULTILINGUAL_DE_OVERRIDE',
+    category: 'MULTILINGUAL_OVERRIDE',
+    pattern: /\b(?:ignoriere|vergiss)\s+(?:alle\s+)?(?:vorherigen\s+)?(?:anweisungen|regeln)\b/i,
+    weight: 0.95,
+    description: 'German instruction override (ignoriere vorherige anweisungen)',
   },
 ];
 
